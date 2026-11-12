@@ -1,0 +1,6 @@
+__pycache__/
+.DS_Store
+.venv/
+**/.streamlit/secrets.toml
+voz/originales/
+landing/funciones_preview.png
