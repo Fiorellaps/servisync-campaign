@@ -36,4 +36,4 @@ python video.py                  # reel (requiere ffmpeg y macOS para la voz sin
 
 ## Licencia
 
-El código está bajo licencia [MIT](LICENSE). La marca ServiSync, el logo, las imágenes, los vídeos y las grabaciones de voz no están incluidos en esa licencia: todos los derechos reservados.
+El código está bajo licencia [MIT](LICENSE). La marca ServiSync, el logo, las imágenes, los vídeos y las grabaciones de voz no están incluidos en esa licencia: todos los derechos reservados (ver [BRAND-NOTICE.md](BRAND-NOTICE.md)).
