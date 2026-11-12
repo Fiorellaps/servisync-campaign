@@ -4,7 +4,7 @@ Material de lanzamiento de ServiSync, la app de partes de trabajo digitales para
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `landing/` | Landing page en Streamlit con formulario de contacto que guarda en Supabase |
+| `landing/` | Landing page en Streamlit con formulario de contacto que se envía por email |
 | `out/` | Posts (1080×1080), stories (1080×1920) y reel de Instagram |
 | `logo/` | Logo e icono en SVG |
 | `voz/` | Guion y locución del reel |
@@ -18,12 +18,14 @@ pip install -r landing/requirements.txt
 cd landing && streamlit run app.py
 ```
 
+Cada solicitud del formulario llega como correo a `cloud.ai.champions@gmail.com`. Al pulsar «Responder» se contesta directamente al interesado.
+
 Para activar el formulario:
 
-1. En Supabase, abre **SQL Editor** y ejecuta `landing/schema.sql`. Crea la tabla `contactos`; la clave pública solo puede insertar.
-2. Copia `landing/.streamlit/secrets.toml.example` a `landing/.streamlit/secrets.toml` y rellena la URL y la clave pública (anon o publishable). Nunca uses la clave `service_role`.
+1. En la cuenta de Gmail, activa la verificación en dos pasos y crea una contraseña de aplicación en <https://myaccount.google.com/apppasswords>.
+2. Copia `landing/.streamlit/secrets.toml.example` a `landing/.streamlit/secrets.toml` y pega esa contraseña en `password`. Este archivo no se sube a git.
 
-El campo `origen` guarda el `utm_source` del enlace, p. ej. `?utm_source=instagram`.
+El campo «Origen» del correo muestra el `utm_source` del enlace, p. ej. `?utm_source=instagram`.
 
 ## Regenerar imágenes y vídeo
 

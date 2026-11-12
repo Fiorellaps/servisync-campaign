@@ -1,4 +1,4 @@
-"""Landing page de ServiSync Digital Solutions con formulario de contacto en Supabase.
+"""Landing page de ServiSync Digital Solutions con formulario de contacto que se envía por email (SMTP).
 
 Ejecutar desde esta carpeta (para que lea .streamlit/ de aquí):
     cd landing && streamlit run app.py
@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import base64
 import re
+import smtplib
+import ssl
 import time
+from datetime import datetime
+from email.message import EmailMessage
+from email.utils import formataddr
 from html import escape
 from pathlib import Path
 
-import requests
 import streamlit as st
 
 HERE = Path(__file__).resolve().parent
@@ -25,22 +29,41 @@ st.set_page_config(page_title="ServiSync · Partes de trabajo sin papeles", page
                    layout="wide", initial_sidebar_state="collapsed")
 
 
-# ───────────────────────── Supabase ─────────────────────────
-def supabase_cfg() -> dict | None:
+# ───────────────────────── SMTP ─────────────────────────
+def smtp_cfg() -> dict | None:
     try:
-        cfg = st.secrets["supabase"]
-        return {"url": cfg["url"].rstrip("/"), "key": cfg["key"], "table": cfg.get("table", "contactos")}
-    except Exception:  # sin secrets.toml o sin la sección [supabase]
+        c = st.secrets["smtp"]
+        user = c["user"]
+        return {"host": c.get("host", "smtp.gmail.com"), "port": int(c.get("port", 465)), "user": user,
+                "password": c["password"], "to": c.get("to", user)}
+    except Exception:  # sin secrets.toml o sin la sección [smtp]
         return None
 
 
-def save_contact(cfg: dict, row: dict) -> None:
-    """Inserta vía la API REST de Supabase. La clave pública solo puede insertar (ver schema.sql)."""
-    r = requests.post(
-        f"{cfg['url']}/rest/v1/{cfg['table']}", json=row, timeout=10,
-        headers={"apikey": cfg["key"], "Content-Type": "application/json", "Prefer": "return=minimal"},
-    )
-    r.raise_for_status()
+def one_line(s: str) -> str:
+    """Quita saltos de línea para que un valor del usuario no pueda inyectar cabeceras en el correo."""
+    return re.sub(r"[\r\n]+", " ", s).strip()
+
+
+def send_contact(cfg: dict, row: dict) -> None:
+    """Envía la solicitud al buzón de ServiSync. «Responder» contesta directamente al interesado."""
+    labels = [("Nombre", "nombre"), ("Email", "email"), ("Teléfono", "telefono"), ("Empresa", "empresa"),
+              ("Sector", "sector"), ("Origen", "origen"), ("Acepta privacidad", "acepta_privacidad")]
+    lines = [f"{lbl}: {row[k] if row[k] not in (None, '') else '—'}" for lbl, k in labels]
+    body = ("Nueva solicitud de demo desde la landing de ServiSync\n"
+            f"Fecha: {datetime.now():%d/%m/%Y %H:%M}\n\n" + "\n".join(lines)
+            + f"\n\nMensaje:\n{row['mensaje'] or '—'}\n")
+
+    msg = EmailMessage()
+    msg["Subject"] = one_line(f"Solicitud de demo · {row['nombre']}" + (f" ({row['empresa']})" if row["empresa"] else ""))
+    msg["From"] = formataddr(("ServiSync Landing", cfg["user"]))
+    msg["To"] = cfg["to"]
+    msg["Reply-To"] = formataddr((one_line(row["nombre"]), row["email"]))
+    msg.set_content(body)
+
+    with smtplib.SMTP_SSL(cfg["host"], cfg["port"], context=ssl.create_default_context(), timeout=15) as s:
+        s.login(cfg["user"], cfg["password"])
+        s.send_message(msg)
 
 
 # ───────────────────────── estilos ─────────────────────────
@@ -169,7 +192,7 @@ with info:
       <div class="card"><h3>Qué incluye la demo</h3>
       <p>✔ Configuración de tu plantilla de parte<br>✔ Prueba en tu móvil<br>✔ Sin compromiso</p></div>""")
 
-cfg = supabase_cfg()
+cfg = smtp_cfg()
 with form_col, st.container(key="contact_card"):
     if st.session_state.get("contact_ok"):
         st.success("¡Gracias! Hemos recibido tus datos y te contactaremos pronto.")
@@ -178,7 +201,7 @@ with form_col, st.container(key="contact_card"):
             st.rerun()
     else:
         if cfg is None:
-            st.warning("Formulario sin configurar: falta la sección [supabase] en .streamlit/secrets.toml.")
+            st.warning("Formulario sin configurar: falta la sección [smtp] en .streamlit/secrets.toml.")
         with st.form("contact", clear_on_submit=False, border=False):
             c1, c2 = st.columns(2)
             nombre = c1.text_input("Nombre y apellidos *", max_chars=100)
@@ -193,7 +216,8 @@ with form_col, st.container(key="contact_card"):
                                          disabled=cfg is None)
 
         if sent:
-            nombre, email = nombre.strip(), email.strip().lower()
+            nombre, email = one_line(nombre), one_line(email).lower()
+            empresa, telefono = one_line(empresa), one_line(telefono)
             errors = []
             if len(nombre) < 2:
                 errors.append("Indica tu nombre.")
@@ -210,10 +234,10 @@ with form_col, st.container(key="contact_card"):
             else:
                 row = {"nombre": nombre, "email": email, "telefono": telefono.strip() or None,
                        "empresa": empresa.strip() or None, "sector": sector, "mensaje": mensaje.strip() or None,
-                       "acepta_privacidad": True, "origen": st.query_params.get("utm_source", "landing")[:40]}
+                       "acepta_privacidad": "Sí", "origen": st.query_params.get("utm_source", "landing")[:40]}
                 try:
-                    save_contact(cfg, row)
-                except requests.RequestException:
+                    send_contact(cfg, row)
+                except (smtplib.SMTPException, OSError):  # credenciales, red o servidor caído
                     st.error("No hemos podido enviar tu solicitud. Inténtalo de nuevo en unos minutos.")
                 else:
                     st.session_state["last_sent"] = time.time()
