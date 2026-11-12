@@ -25,6 +25,32 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 SECTORES = ["Electricidad", "Fontanería", "Climatización", "Telecomunicaciones", "Mantenimiento", "Otro"]
 COOLDOWN_S = 30  # evita envíos repetidos desde la misma sesión
 
+# Datos del responsable del tratamiento para la política de privacidad (privacidad.md).
+# Completa los campos entre corchetes antes de publicar la web.
+PRIVACY = {
+    "version": "12/11/2026",  # cámbiala al modificar privacidad.md: queda registrada en cada solicitud
+    "titular": "[Nombre y apellidos o razón social]",
+    "nif": "[NIF / CIF]",
+    "direccion": "[Dirección postal completa]",
+    "email": "cloud.ai.champions@gmail.com",
+}
+PRIVACY_URL = "?p=privacidad"
+
+# Redes sociales: (nombre, usuario, URL, trazado SVG del icono en una caja de 24x24)
+SOCIAL = [
+    ("Instagram", "@servisync.ds", "https://www.instagram.com/servisync.ds/",
+     '<rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="none" stroke="{c}" stroke-width="2.2"/>'
+     '<circle cx="12" cy="12" r="4.3" fill="none" stroke="{c}" stroke-width="2.2"/>'
+     '<circle cx="17.4" cy="6.6" r="1.4" fill="{c}"/>'),
+    ("TikTok", "@servisync.ds", "https://www.tiktok.com/@servisync.ds",
+     '<path fill="{c}" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 '
+     '1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 '
+     '3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49'
+     '.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63'
+     '.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4'
+     '-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>'),
+]
+
 st.set_page_config(page_title="ServiSync · Partes de trabajo sin papeles", page_icon=str(ASSETS / "logo/servisync-icon.svg"),
                    layout="wide", initial_sidebar_state="collapsed")
 
@@ -48,7 +74,7 @@ def one_line(s: str) -> str:
 def send_contact(cfg: dict, row: dict) -> None:
     """Envía la solicitud al buzón de ServiSync. «Responder» contesta directamente al interesado."""
     labels = [("Nombre", "nombre"), ("Email", "email"), ("Teléfono", "telefono"), ("Empresa", "empresa"),
-              ("Sector", "sector"), ("Origen", "origen"), ("Acepta privacidad", "acepta_privacidad")]
+              ("Sector", "sector"), ("Origen", "origen"), ("Política de privacidad aceptada", "acepta_privacidad")]
     lines = [f"{lbl}: {row[k] if row[k] not in (None, '') else '—'}" for lbl, k in labels]
     body = ("Nueva solicitud de demo desde la landing de ServiSync\n"
             f"Fecha: {datetime.now():%d/%m/%Y %H:%M}\n\n" + "\n".join(lines)
@@ -100,8 +126,17 @@ header[data-testid="stHeader"], #MainMenu, footer {{display:none}}
 .ss .band {{background:{NAVY}; color:#fff; border-radius:24px; padding:2.2rem 2.4rem; margin:3rem 0 2rem}}
 .ss .band h2 {{color:#fff}} .ss .band p {{color:#C7D6E0; margin:0}}
 .ss .foot {{text-align:center; color:#7A8A99; font-size:.9rem; margin-top:3rem}}
+.ss .social {{display:flex; gap:.6rem; flex-wrap:wrap}}
+.ss .foot .social {{justify-content:center; margin-bottom:.9rem}}
+.ss .social a {{display:inline-flex; align-items:center; gap:.5rem; padding:.5rem .95rem; border-radius:999px;
+               background:#fff; border:1px solid #DDE6EC; color:{NAVY}!important; font-weight:600; font-size:.92rem;
+               text-decoration:none!important; transition:border-color .15s, box-shadow .15s}}
+.ss .social a:hover {{border-color:{TEAL}; box-shadow:0 6px 16px rgba(11,59,91,.10)}}
+.ss .social img {{width:18px; height:18px; display:block}}
 [data-testid="stVideo"], .st-key-hero_media img {{max-width:340px; margin:0 auto; display:block;
   border-radius:24px; box-shadow:0 24px 48px rgba(11,59,91,.25)}}
+.st-key-privacy_card {{background:#fff; border:1px solid #DDE6EC; border-radius:24px; padding:2rem 2.4rem}}
+.st-key-privacy_card h1 {{color:{NAVY}; font-size:2.2rem}} .st-key-privacy_card h2 {{color:{NAVY}; font-size:1.25rem; margin-top:1.2rem}}
 .st-key-contact_card {{background:#fff; border:1px solid #DDE6EC; border-radius:24px; padding:1.6rem}}
 @media (max-width: 800px) {{ .ss h1 {{font-size:2.3rem}} .ss .grid {{grid-template-columns:1fr}} }}
 </style>""")
@@ -111,10 +146,39 @@ def html(body: str) -> None:
     st.html(f'<div class="ss">{body}</div>')
 
 
+def social_links() -> str:
+    links = []
+    for name, handle, url, icon in SOCIAL:
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">{icon.format(c=NAVY)}</svg>'
+        src = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+        links.append(f'<a href="{url}" target="_blank" rel="noopener noreferrer" aria-label="{name} {handle}">'
+                     f'<img src="{src}" alt="">{name} · {handle}</a>')
+    return f'<div class="social">{"".join(links)}</div>'
+
+
+def footer(extra: str = "") -> None:
+    html(f'<div class="foot">{social_links()}© ServiSync <span class="accent">Digital Solutions</span>{extra}</div>')
+
+
+def nav(cta_href: str, cta_label: str) -> None:
+    logo_b64 = base64.b64encode((ASSETS / "logo/servisync-logo.svg").read_bytes()).decode()
+    html(f'<div class="nav"><a href="./"><img src="data:image/svg+xml;base64,{logo_b64}" '
+         f'alt="ServiSync Digital Solutions" style="height:60px;width:auto"></a>'
+         f'<a class="cta" href="{cta_href}" target="_self">{cta_label}</a></div>')
+
+
+# ───────────────────────── página: política de privacidad ─────────────────────────
+if st.query_params.get("p") == "privacidad":
+    nav("./#contacto", "← Volver al formulario")
+    _, mid, _ = st.columns([1, 6, 1])
+    with mid, st.container(key="privacy_card"):
+        st.markdown((HERE / "privacidad.md").read_text(encoding="utf-8").format(**PRIVACY))
+    footer()
+    st.stop()
+
+
 # ───────────────────────── cabecera y hero ─────────────────────────
-logo_b64 = base64.b64encode((ASSETS / "logo/servisync-logo.svg").read_bytes()).decode()
-html(f'<div class="nav"><img src="data:image/svg+xml;base64,{logo_b64}" alt="ServiSync Digital Solutions" '
-     f'style="height:60px;width:auto"><a class="cta" href="#contacto">Solicita tu demo</a></div>')
+nav("#contacto", "Solicita tu demo")
 
 left, right = st.columns([1.15, 1], gap="large", vertical_alignment="center")
 with left:
@@ -190,7 +254,8 @@ with info:
     html("""<div class="eyebrow">Contacto</div><h2>Solicita tu demo</h2>
       <p class="lead">Déjanos tus datos y te enseñamos ServiSync con tus propias plantillas.</p>
       <div class="card"><h3>Qué incluye la demo</h3>
-      <p>✔ Configuración de tu plantilla de parte<br>✔ Prueba en tu móvil<br>✔ Sin compromiso</p></div>""")
+      <p>✔ Configuración de tu plantilla de parte<br>✔ Prueba en tu móvil<br>✔ Sin compromiso</p></div>"""
+         f'<h3 style="color:{NAVY}; font-size:1.05rem; margin:1.6rem 0 .7rem">Síguenos</h3>{social_links()}')
 
 cfg = smtp_cfg()
 with form_col, st.container(key="contact_card"):
@@ -211,7 +276,16 @@ with form_col, st.container(key="contact_card"):
             sector = st.selectbox("Sector", SECTORES, index=None, placeholder="Elige tu sector")
             mensaje = st.text_area("¿Qué necesitas?", max_chars=2000, height=110,
                                    placeholder="p. ej. Hacemos revisiones de aerotermia y queremos digitalizar el checklist")
-            acepta = st.checkbox("Acepto que ServiSync use estos datos para contactarme sobre el servicio. *")
+            st.caption(
+                "**Información básica sobre protección de datos.** Responsable: ServiSync Digital Solutions. "
+                "Finalidad: responder a tu solicitud y contactarte sobre el servicio. Legitimación: tu consentimiento. "
+                "Destinatarios: no se ceden datos a terceros, salvo proveedores necesarios (Google, para el correo). "
+                "Derechos: acceso, rectificación, supresión y otros, como se explica en la "
+                f"[política de privacidad]({PRIVACY_URL})."
+            )
+            # Sin enlace en la etiqueta: Streamlit usa el clic en la etiqueta para marcar la casilla y no abre el enlace
+            acepta = st.checkbox("He leído y acepto la política de privacidad. *")
+            st.markdown(f"[Leer la política de privacidad ↗]({PRIVACY_URL})")
             sent = st.form_submit_button("Enviar solicitud", type="primary", use_container_width=True,
                                          disabled=cfg is None)
 
@@ -224,7 +298,7 @@ with form_col, st.container(key="contact_card"):
             if not EMAIL_RE.match(email):
                 errors.append("Indica un email válido.")
             if not acepta:
-                errors.append("Debes aceptar el uso de tus datos para que podamos contactarte.")
+                errors.append("Debes aceptar la política de privacidad para enviar la solicitud.")
             wait = COOLDOWN_S - (time.time() - st.session_state.get("last_sent", 0))
             if wait > 0:
                 errors.append(f"Espera {int(wait) + 1} s antes de enviar otra solicitud.")
@@ -234,7 +308,9 @@ with form_col, st.container(key="contact_card"):
             else:
                 row = {"nombre": nombre, "email": email, "telefono": telefono.strip() or None,
                        "empresa": empresa.strip() or None, "sector": sector, "mensaje": mensaje.strip() or None,
-                       "acepta_privacidad": "Sí", "origen": st.query_params.get("utm_source", "landing")[:40]}
+                       "acepta_privacidad": f"Sí, el {datetime.now():%d/%m/%Y a las %H:%M} "
+                                            f"(política del {PRIVACY['version']})",
+                       "origen": st.query_params.get("utm_source", "landing")[:40]}
                 try:
                     send_contact(cfg, row)
                 except (smtplib.SMTPException, OSError):  # credenciales, red o servidor caído
@@ -244,5 +320,4 @@ with form_col, st.container(key="contact_card"):
                     st.session_state["contact_ok"] = True
                     st.rerun()
 
-html(f'<div class="foot">© ServiSync <span class="accent">Digital Solutions</span> · '
-     f'{escape("Partes de trabajo digitales para profesionales de servicios")}</div>')
+footer(f' · {escape("Partes de trabajo digitales para profesionales de servicios")}')
