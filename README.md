@@ -33,3 +33,7 @@ python build.py                  # posts y stories en out/
 python landing/make_features.py  # ilustraciones de la sección Funciones
 python video.py                  # reel (requiere ffmpeg y macOS para la voz sintética)
 ```
+
+## Licencia
+
+El código está bajo licencia [MIT](LICENSE). La marca ServiSync, el logo, las imágenes, los vídeos y las grabaciones de voz no están incluidos en esa licencia: todos los derechos reservados.
